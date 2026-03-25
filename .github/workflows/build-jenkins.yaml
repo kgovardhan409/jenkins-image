@@ -1,0 +1,40 @@
+name: Build and Push Docker Image to ECR            # Workflow name as shown in GitHub Actions UI
+
+on:                                                 # Event(s) that trigger this workflow
+  push:                                             # Trigger when code is pushed
+    branches:                                       # Limit to specific branches
+      - master                                        # Only run on pushes to the 'main' branch
+
+permissions:                                        # Permissions granted to the GitHub Actions token
+  id-token: write                                   # REQUIRED for OIDC to assume AWS IAM role without secrets
+  contents: read                                    # Allows reading repository contents (checkout, etc.)
+
+jobs:                                               # Top-level jobs group
+  build:                                            # A single job named 'build'
+    runs-on: ubuntu-latest                          # Use the latest Ubuntu runner provided by GitHub
+
+    steps:                                          # Ordered list of steps for this job
+      - name: Checkout repository                   # Step 1: fetch code from your repo
+        uses: actions/checkout@v3                   # Official action to checkout the repo into the runner
+
+      - name: Configure AWS credentials using OIDC  # Step 2: get temporary AWS creds via OpenID Connect (no secrets)
+        uses: aws-actions/configure-aws-credentials@v2  # AWS action that exchanges OIDC token for AWS STS creds
+        with:
+          role-to-assume: arn:aws:iam::491085428065:role/ecr-githubactions-role  # The IAM role to assume in your AWS account
+          aws-region: ap-south-1                     # Default AWS region for subsequent AWS/ECR commands
+
+      - name: Login to ECR                           # Step 3: authenticate Docker client to your ECR registry
+        id: login-ecr                                # Give this step an ID so we can reuse its outputs
+        uses: aws-actions/amazon-ecr-login@v1        # Action that runs 'aws ecr get-login-password' and 'docker login'
+                                                     # It sets outputs like 'registry' (e.g., 701130021598.dkr.ecr.ap-south-1.amazonaws.com)
+
+      - name: Build Docker Image                     # Step 4: build your Docker image from the Dockerfile in repo root
+        run: docker build -t jenkins .                # Tags the local image as 'my-app:latest'; '.' is the build context (current dir)
+
+      - name: Tag Docker Image                       # Step 5: retag the local image with your ECR registry/repo name
+        run: docker tag jenkins:latest ${{ steps.login-ecr.outputs.registry }}/jenkins:latest
+                                                     # Example final tag: 701130021598.dkr.ecr.ap-south-1.amazonaws.com/jenkins:latest
+
+      - name: Push Docker Image                      # Step 6: push the newly tagged image to ECR
+        run: docker push ${{ steps.login-ecr.outputs.registry }}/jenkins:latest
+                                                     # Uploads layers and creates/updates the 'latest' tag in ECR
