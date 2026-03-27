@@ -1,18 +1,18 @@
-FROM amazonlinux
+FROM amazonlinux:2
 
 # Install Java & wget
-RUN yum install -y java-17-amazon-corretto wget
+RUN yum update -y && \
+    yum install -y java-17-amazon-corretto wget && \
+    yum clean all
 
 # Create Jenkins directory
-RUN mkdir -p /opt/jenkins
+WORKDIR /opt/jenkins
 
 # Download Jenkins LTS WAR file
-RUN wget https://get.jenkins.io/war-stable/latest/jenkins.war -O /opt/jenkins/jenkins.war
+RUN wget https://get.jenkins.io/war-stable/latest/jenkins.war
 
 # Expose port
 EXPOSE 8080
 
 # Run Jenkins
-CMD ["java", "-jar", "/opt/jenkins/jenkins.war", "--httpPort=8080"]
-
-# just comment
+CMD ["java", "-jar", "jenkins.war", "--httpPort=8080"]
